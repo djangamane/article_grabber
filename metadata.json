@@ -1,0 +1,7 @@
+{
+  "name": "Article Grabber",
+  "description": "An agent that navigates to a news article URL, intelligently identifies and extracts its core content (title, text, and main image), cleans the extracted text, and returns the data in a structured format.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
