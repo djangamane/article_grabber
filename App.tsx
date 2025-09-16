@@ -1,87 +1,57 @@
-import React, { useState } from 'react';
-import type { ArticleData } from './types';
-import { grabArticleContent, grabArticleContentFromImage } from './services/geminiService';
-import { captureTab } from './utils/screenshot';
-import UrlInputForm from './components/UrlInputForm';
-import Loader from './components/Loader';
-import ErrorDisplay from './components/ErrorDisplay';
-import ArticleDisplay from './components/ArticleDisplay';
-import ScreenshotFallback from './components/ScreenshotFallback';
+import React, { useState } from "react";
+import type { ArticleData } from "./types";
+import UrlInputForm from "./components/UrlInputForm";
+import Loader from "./components/Loader";
+import ErrorDisplay from "./components/ErrorDisplay";
+import ArticleDisplay from "./components/ArticleDisplay";
 
 const App: React.FC = () => {
-  const [url, setUrl] = useState<string>('https://www.theverge.com/2024/7/22/24202888/apple-intelligence-ios-18-macos-sequoia-beta');
+  const [url, setUrl] = useState<string>(
+    "https://www.theverge.com/2024/7/22/24202888/apple-intelligence-ios-18-macos-sequoia-beta",
+  );
   const [article, setArticle] = useState<ArticleData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [showScreenshotFallback, setShowScreenshotFallback] = useState<boolean>(false);
-
-  const resetState = () => {
-    setIsLoading(true);
-    setError(null);
-    setArticle(null);
-    setShowScreenshotFallback(false);
-  };
 
   const handleGrabArticle = async () => {
     if (!url.trim()) {
-      setError('Please enter a valid URL.');
+      setError("Please enter a valid URL.");
       return;
     }
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        setError('Please enter a full URL starting with http:// or https://');
-        return;
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      setError("Please enter a full URL starting with http:// or https://");
+      return;
     }
 
-    resetState();
+    setIsLoading(true);
+    setError(null);
+    setArticle(null);
 
     try {
-      const data = await grabArticleContent(url);
-      if (data && data.title && data.textContent) {
-        if (data.title === "Extraction Failed") {
-            const errorMessage = `AI Error: ${data.textContent}`;
-            setError(errorMessage);
-            if (data.textContent?.includes('unable to directly access')) {
-                setShowScreenshotFallback(true);
-            }
-            setArticle(null);
-        } else {
-            setArticle(data);
-        }
-      } else {
-        setError('Failed to extract meaningful content from the URL. The page might be protected, or the structure is not recognized.');
-        setArticle(null);
+      const response = await fetch("http://localhost:3001/grab", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to grab article");
       }
+
+      const data = await response.json();
+      setArticle(data);
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+      setError(
+        err instanceof Error ? err.message : "An unknown error occurred.",
+      );
     } finally {
       setIsLoading(false);
     }
   };
-  
-  const handleScreenshotMethod = async () => {
-      resetState();
-      
-      try {
-          const imageData = await captureTab();
-          const data = await grabArticleContentFromImage(imageData);
-           if (data && data.title && data.textContent) {
-              setArticle(data);
-          } else {
-              setError('AI failed to extract content from the screenshot. Please ensure the article text is clearly visible.');
-          }
-      } catch (err) {
-          console.error(err);
-           const message = err instanceof Error ? err.message.toLowerCase() : '';
-           // Don't show an error if the user simply cancelled the screen share prompt
-          if (!message.includes('permission denied') && !message.includes('not found')) {
-            setError(err instanceof Error ? err.message : 'An unknown error occurred during screen capture.');
-          }
-      } finally {
-          setIsLoading(false);
-      }
-  };
-
 
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans p-4 sm:p-6 lg:p-8 flex flex-col items-center">
@@ -106,9 +76,6 @@ const App: React.FC = () => {
           <div className="mt-8 space-y-4">
             {isLoading && <Loader />}
             {error && <ErrorDisplay message={error} />}
-            {showScreenshotFallback && !isLoading && (
-              <ScreenshotFallback onCapture={handleScreenshotMethod} />
-            )}
             {article && !isLoading && <ArticleDisplay article={article} />}
           </div>
         </main>
